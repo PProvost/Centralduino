@@ -7,6 +7,9 @@
 const double minTemp = -20.0;
 const double minLux = 0.0;
 
+// Location of config.json on SPIFFS (must start with /)
+const char *CONFIG_FILE = "/config.json";
+
 // Forward declarations
 void reboot_callback();
 void connectWifi();
@@ -28,7 +31,7 @@ void setup()
 
     // Required to be called in your setup() function
     // Will ensure the network is setup if it isn't already
-    Centralduino.setup();
+    Centralduino.setup(CONFIG_FILE);
 
     // Register a device method callback
     Centralduino.registerDeviceMethod("reboot", reboot_callback);

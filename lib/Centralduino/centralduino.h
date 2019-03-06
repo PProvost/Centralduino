@@ -29,7 +29,7 @@ typedef std::function<void()> MethodCallbackFunctionType;
 class CentralduinoClass
 {
   public:
-    void setup();
+    void setup(const char* configFilePath);
     void sendMeasurement(const char *name, double value);
     void registerDeviceMethod(const char *name, MethodCallbackFunctionType callback);
     void loop();

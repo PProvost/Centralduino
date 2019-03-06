@@ -8,14 +8,13 @@
 #include "string_buffer.h"
 #include "azure_dps.h"
 
-const char *CONFIG_FILE = "/config.json";
 
-void CentralduinoClass::setup()
+void CentralduinoClass::setup(const char* configFilePath)
 {
     Log.notice(CR "********* Centralduino starting *********" CR);
     delay(1000);
 
-    CentralduinoConfig.loadConfig(CONFIG_FILE);
+    CentralduinoConfig.loadConfig(configFilePath);
     CentralduinoConfig.dumpConfigToLog();
 
     ensureWiFiConnected();
