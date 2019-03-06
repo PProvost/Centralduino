@@ -1,10 +1,7 @@
-#include <centralduino.h>
+#include <Arduino.h>
 #include <ArduinoLog.h>
 #include <Ticker.h>
-
-const char* WIFI_SSID = "Provost-Mesh";
-const char* WIFI_PASS = "cra6ga12o4doph09";
-const char* CONNECTION_STRING = "";
+#include <centralduino.h>
 
 // Used for random simluated telemetry values
 const double minTemp = -20.0;

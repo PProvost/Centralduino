@@ -1,7 +1,6 @@
 #ifndef __FRAMEWORK_H
 #define __FRAMEWORK_H
 
-#include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <ArduinoJson.h>
 
