@@ -1,0 +1,11 @@
+{
+    "network": {
+      "ssid": "Provost-Mesh",
+      "password": "cra6ga12o4doph09"
+    },
+    "hub": {
+      "scope_id": "0ne0002946D",
+      "device_id": "d6b66b02-8226-4850-ab47-8b3ad35abbe1",
+      "sas_key": "fnwaYYUxK5sPr/3DXpezEK64VBNUIj6F2ppg5ZHmKZE="
+    }
+  }
