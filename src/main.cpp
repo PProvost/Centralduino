@@ -1,7 +1,7 @@
 #include <Arduino.h>
-#include <ArduinoLog.h>
-#include <Ticker.h>
-#include <centralduino.h>
+#include "ArduinoLog.h"
+#include "Ticker.h"
+#include "Centralduino.h"
 
 // Used for random simluated telemetry values
 const double minTemp = -20.0;
@@ -11,12 +11,14 @@ const double minLux = 0.0;
 const char *CONFIG_FILE = "/config.json";
 
 // Forward declarations
-void reboot_callback();
+bool reboot_callback();
 void connectWifi();
 void sendTelemetry();
+void doReboot();
 
 // Ticker setup - see https://github.com/sstaub/Ticker
-Ticker timer1(sendTelemetry, 10000); // every 10 seconds
+Ticker telemetryTimer(sendTelemetry, 10000); // 10 seconds
+Ticker rebootTimer(doReboot, 5000); // 5 sec
 
 void setup()
 {
@@ -36,14 +38,19 @@ void setup()
     // Register a device method callback
     Centralduino.registerDeviceMethod("reboot", reboot_callback);
 
+    Log.trace("Done setting up... starting timers." CR);
+
+    Centralduino.sendProperty("firmware_ver", "1.1");
+
     // Start our callback timers
-    timer1.start();
+    telemetryTimer.start();
 }
 
 void loop()
 {
     // Allow our timers to update
-    timer1.update();
+    telemetryTimer.update();
+    rebootTimer.update();
 
     // Always call this at the end of loop()
     Centralduino.loop();
@@ -57,12 +64,19 @@ void sendTelemetry()
 
     Centralduino.sendMeasurement("temp", temp);
     Centralduino.sendMeasurement("lux", lux);
+    Centralduino.sendMeasurement("free_heap", ESP.getFreeHeap());
 }
 
-void reboot_callback()
+bool reboot_callback()
 {
     // handle it!
-    
-    ESP.restart();
+    Log.notice("Rebooting in 5 sec!! ***********************");
+    rebootTimer.start();
+    return true;
 }
 
+void doReboot()
+{
+    Log.notice("doReboot() called" CR);
+    ESP.restart();
+}

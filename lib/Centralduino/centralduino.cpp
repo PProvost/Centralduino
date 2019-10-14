@@ -8,8 +8,19 @@
 #include "string_buffer.h"
 #include "azure_dps.h"
 
+#define MAX_REGISTERED_METHODS 10
+typedef struct tagMethodRegistration
+{
+    const char *name;
+    MethodCallbackFunctionType callback;
+} MethodRegistrationEntry;
 
-void CentralduinoClass::setup(const char* configFilePath)
+PubSubClient _mqttClient;
+WiFiClientSecure _wifiClient;
+
+MethodRegistrationEntry methodRegistry[MAX_REGISTERED_METHODS];
+
+void CentralduinoClass::setup(const char *configFilePath)
 {
     Log.notice(CR "********* Centralduino starting *********" CR);
     delay(1000);
@@ -31,6 +42,22 @@ void CentralduinoClass::loop()
     _mqttClient.loop();
 }
 
+void CentralduinoClass::sendProperty(const char *name, const char *value)
+{
+    char topic[128];
+    int rid = 123; // TODO
+    sprintf(topic, PROPERTY_TOPIC_FMT, CentralduinoConfig.hub.device_id, rid);
+
+    StaticJsonDocument<MQTT_MAX_PACKET_SIZE> payload;
+    payload[name] = value;
+
+    char buffer[MQTT_MAX_PACKET_SIZE];
+    serializeJson(payload, buffer);
+    Log.trace("MQTT Publishing to %s" CR, topic);
+    Log.trace("Payload %s" CR, buffer);
+    _mqttClient.publish(topic, buffer);
+}
+
 void CentralduinoClass::sendMeasurement(const char *name, double value)
 {
     char topic[128]; // TODO
@@ -43,21 +70,77 @@ void CentralduinoClass::sendMeasurement(const char *name, double value)
     serializeJson(payload, buffer);
     Log.trace("MQTT Publishing to: %s" CR, topic);
     Log.trace("Payload: %s" CR, buffer);
-    this->_mqttClient.publish(topic, buffer);
+    _mqttClient.publish(topic, buffer);
 }
 
 void CentralduinoClass::registerDeviceMethod(const char *name, MethodCallbackFunctionType callback)
 {
+    // add the name & callback to our map
+    methodRegistry[0].name = name;
+    methodRegistry[0].callback = callback;
 }
 
 ///////////////////////////////////////////////////////////////////
 // Private helper methods
+
+static void handleIncomingDirectMethod(char *methodName, byte *data, unsigned int length, char* rid)
+{
+    char responseTopic[100];
+    // $iothub/methods/res/{status}/?$rid={request id}
+    sprintf(responseTopic, "$iothub/methods/res/200/?$rid=%s", rid);
+
+    Log.notice("Handling incoming direct method: %s (%s)" CR, methodName, rid);
+    for (int i = 0; i < MAX_REGISTERED_METHODS; ++i)
+    {
+        if (strcmp(methodRegistry[i].name, methodName) == 0)
+        {
+            // Found it! Call it and bail.
+            methodRegistry[i].callback();
+            // TODO: Send back a response
+            
+            _mqttClient.publish(responseTopic, "{}");
+            break;
+        }
+    }
+}
 
 static void handleIncomingMessage(char *topic, byte *data, unsigned int length)
 {
     Log.trace("Incoming message received:" CR);
     Log.trace("- topic: %s" CR, topic);
     Log.trace("- data: %s" CR, data);
+
+    // Process the topic string, tokenizing it by the /
+    char *pch;
+    pch = strtok(topic, "/");
+    // Log.trace("pch=%s" CR, pch);
+    if (pch == NULL)
+    {
+        Log.warning("Malformed topic string received (1): %s" CR, topic);
+        return;
+    }
+
+    if (strcmp(pch, "$iothub") == 0)
+    {
+        // grab the next token to figure out the type
+        pch = strtok(NULL, "/");
+        if (strcmp(pch, "methods") == 0)
+        {
+            // It is a direct mehod, next token should be POST
+            pch = strtok(NULL, "/");
+            if (strcmp(pch, "POST") != 0)
+            {
+                Log.warning("Malformed topic string received (2): %s" CR, topic);
+                return;
+            }
+            // followed by the method name
+            pch = strtok(NULL, "/");
+            char* rpch = strtok(NULL, "=");
+            rpch = strtok(NULL, "=");
+            Log.notice("Direct method received. Sending to handler." CR);
+            handleIncomingDirectMethod(pch, data, length, rpch);
+        }
+    }
 }
 
 void CentralduinoClass::sendTwinUpdateRequest()
@@ -88,7 +171,6 @@ void CentralduinoClass::registerCallbacks()
 
     if (errorCode < 3)
         Log.error("ERROR: mqttClient couldn't subscribe to twin/methods etc. error code sum => %d", errorCode);
-
 }
 
 void CentralduinoClass::ensureWiFiConnected()
@@ -98,9 +180,31 @@ void CentralduinoClass::ensureWiFiConnected()
 
     Log.notice("Connecting to WiFi." CR);
     WiFi.mode(WIFI_STA);
+
+    // Dump available networks to terminal
+    // WiFi.disconnect();
+    // Log.notice("-------------------" CR);
+    // Log.notice("Scan starting... ");
+    // int numNets = WiFi.scanNetworks();
+    // Log.notice("%d networks found" CR, numNets);
+    // for (int i = 0; i < numNets; ++i)
+    //     Log.notice("- %s" CR, WiFi.SSID(i).c_str());
+    // Log.notice("-------------------" CR);
+    // delay(1000);
+
     WiFi.begin(CentralduinoConfig.network.ssid, CentralduinoConfig.network.password);
+
+    unsigned long startingMillis = millis();
     while (WiFi.status() != WL_CONNECTED)
     {
+        // bail out after 30sec
+        if ((millis() - startingMillis) > 30 * 1000)
+        {
+            Log.error("Unable to connect to WiFi. Restarting device.");
+            ESP.restart();
+            break; // shouldn't get here?
+        }
+
         delay(1000);
     }
     Log.trace("WiFi connected successfully" CR);
@@ -108,7 +212,7 @@ void CentralduinoClass::ensureWiFiConnected()
 
 void CentralduinoClass::ensureHubConnected()
 {
-    if (this->_mqttClient.connected())
+    if (_mqttClient.connected())
         return;
 
     StringBuffer hostName, username, password;
@@ -139,18 +243,18 @@ void CentralduinoClass::ensureHubConnected()
 
     Log.notice("Setting up MQTT client..." CR);
     BearSSL::X509List certList(SSL_CA_PEM_DEF);
-    this->_wifiClient.setX509Time(time(NULL));
-    this->_wifiClient.setTrustAnchors(&certList);
-    this->_mqttClient.setClient(this->_wifiClient);
-    this->_mqttClient.setServer(*hostName, AZURE_MQTT_SERVER_PORT);
+    _wifiClient.setX509Time(time(NULL));
+    _wifiClient.setTrustAnchors(&certList);
+    _mqttClient.setClient(_wifiClient);
+    _mqttClient.setServer(*hostName, AZURE_MQTT_SERVER_PORT);
     _mqttClient.setCallback(handleIncomingMessage);
 
     this->_isHubConnected = false;
     // Loop until we're connected
     Log.trace("Attempting MQTT connection: %s, %s, %s" CR, *deviceId, *username, *password);
-    while (!this->_mqttClient.connected())
+    while (!_mqttClient.connected())
     {
-        if (this->_mqttClient.connect(*deviceId, *username, *password))
+        if (_mqttClient.connect(*deviceId, *username, *password))
         {
             Log.trace("MQTT connected");
             break;
@@ -211,8 +315,8 @@ void CentralduinoClass::syncNtpTime()
 // }
 
 int CentralduinoClass::getUsernameAndPasswordFromConnectionString(const char *connectionString, size_t connectionStringLength,
-                                                                   StringBuffer &hostName, StringBuffer &deviceId,
-                                                                   StringBuffer &username, StringBuffer &password)
+                                                                  StringBuffer &hostName, StringBuffer &deviceId,
+                                                                  StringBuffer &username, StringBuffer &password)
 {
     // TODO: improve this so we don't depend on a particular order in connection string
     StringBuffer connStr(connectionString, connectionStringLength);

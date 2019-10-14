@@ -23,7 +23,7 @@
 
 #include "string_buffer.h"
 
-typedef std::function<void()> MethodCallbackFunctionType;
+typedef std::function<bool()> MethodCallbackFunctionType;
 
 // Public API functions here
 class CentralduinoClass
@@ -33,6 +33,7 @@ class CentralduinoClass
     void sendMeasurement(const char *name, double value);
     void registerDeviceMethod(const char *name, MethodCallbackFunctionType callback);
     void loop();
+    void sendProperty(const char *name, const char *value );
 
   private:
     void sendTwinUpdateRequest();
@@ -47,8 +48,6 @@ class CentralduinoClass
   private:
     bool _isHubConnected;
     StaticJsonDocument<1024> _jsonDocument;
-    PubSubClient _mqttClient;
-    WiFiClientSecure _wifiClient;
 };
 
 // Declare the global singleton

@@ -1,11 +1,11 @@
 {
     "network": {
-      "ssid": "Provost-Mesh",
-      "password": "cra6ga12o4doph09"
+      "ssid": "Peter’s iPhone",
+      "password": "f1skiwof1stt0"
     },
     "hub": {
-      "scope_id": "0ne0002946D",
-      "device_id": "d6b66b02-8226-4850-ab47-8b3ad35abbe1",
-      "sas_key": "fnwaYYUxK5sPr/3DXpezEK64VBNUIj6F2ppg5ZHmKZE="
+      "scope_id": "0ne0007FF1E",
+      "device_id": "671018bf-1133-4960-9a87-af31251b56e4",
+      "sas_key": "wkpn+UhrY8rO3Aa0qkwH32KR19619gV6yg5XdwsJggk="
     }
   }

@@ -47,3 +47,4 @@
     "-----END CERTIFICATE-----\r\n"
 
 #define MEASUREMENT_TOPIC_FMT "devices/%s/messages/events/"
+#define PROPERTY_TOPIC_FMT "$iothub/twin/PATCH/properties/reported/?$rid=%d"
